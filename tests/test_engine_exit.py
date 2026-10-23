@@ -47,7 +47,7 @@ def load_engine():
 
 
 class EngineExitTests(unittest.TestCase):
-    def test_repeated_exit_cleans_up_once_and_unregisters_callback(self):
+    def test_repeated_exit_and_callback_clean_up_once(self):
         module = load_engine()
         workers = [Mock(), Mock()]
         module.mp.get_context.return_value.Process.side_effect = workers
@@ -64,7 +64,8 @@ class EngineExitTests(unittest.TestCase):
             runner.call.assert_called_once_with("exit")
             for worker in workers:
                 worker.join.assert_called_once_with()
-            unregister.assert_called_once_with(engine.exit)
+            # exit() is also an atexit callback and must not mutate that registry.
+            unregister.assert_not_called()
             self.assertFalse(hasattr(engine, "model_runner"))
 
     def test_runner_error_is_propagated_and_callback_is_preserved(self):

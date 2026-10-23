@@ -41,7 +41,6 @@ class LLMEngine:
         del self.model_runner
         for p in self.ps:
             p.join()
-        atexit.unregister(self.exit)
 
     def add_request(self, prompt: str | list[int], sampling_params: SamplingParams):
         if isinstance(prompt, str):
