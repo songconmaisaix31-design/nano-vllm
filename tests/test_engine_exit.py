@@ -82,6 +82,27 @@ class EngineExitTests(unittest.TestCase):
             self.assertIs(engine.model_runner, runner)
             unregister.assert_not_called()
 
+    def test_interrupted_worker_join_can_be_retried_without_stopping_runner_twice(self):
+        module = load_engine()
+        workers = [Mock(), Mock()]
+        module.mp.get_context.return_value.Process.side_effect = workers
+        workers[1].join.side_effect = [KeyboardInterrupt, None]
+        with patch.object(module.atexit, "register") as register:
+            engine = module.LLMEngine("unused", tensor_parallel_size=3)
+            runner = engine.model_runner
+
+            with self.assertRaises(KeyboardInterrupt):
+                engine.exit()
+            self.assertFalse(hasattr(engine, "model_runner"))
+            runner.call.assert_called_once_with("exit")
+
+            # The interpreter callback must still finish outstanding joins.
+            register.call_args.args[0]()
+            self.assertEqual(workers[1].join.call_count, 2)
+            runner.call.assert_called_once_with("exit")
+            engine.exit()
+            self.assertEqual(workers[1].join.call_count, 2)
+
     def test_interpreter_shutdown_after_automatic_or_manual_exit(self):
         for manual_exit in (False, True):
             with self.subTest(manual_exit=manual_exit):
